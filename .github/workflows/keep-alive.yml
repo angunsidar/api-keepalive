@@ -1,0 +1,22 @@
+name: Keep Finans API Alive
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # Her 5 dakikada bir (Render 15 dk'da uyutur)
+  workflow_dispatch:          # Manuel tetikleme
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Finans API
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 60 \
+            https://finans-api-ztnv.onrender.com/health)
+          echo "Response: $response"
+          if [ "$response" = "200" ]; then
+            echo "✅ API is alive"
+          else
+            echo "⚠️ API returned $response"
+          fi
