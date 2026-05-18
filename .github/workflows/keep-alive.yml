@@ -35,3 +35,10 @@ jobs:
             --max-time 60 \
             -H "X-API-Key: ${{ secrets.FINANS_API_KEY }}" \
             https://finans-api-ztnv.onrender.com/gumus/tl
+
+      - name: Warm up doviz cache (USD EUR GBP CHF JPY)
+        run: |
+          curl -s -o /dev/null -w "Doviz: %{http_code}\n" \
+            --max-time 60 \
+            -H "X-API-Key: ${{ secrets.FINANS_API_KEY }}" \
+            "https://finans-api-ztnv.onrender.com/doviz/tl?kodlar=USD,EUR,GBP,CHF,JPY,AUD,CAD"
