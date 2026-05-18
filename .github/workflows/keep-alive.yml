@@ -15,12 +15,12 @@ jobs:
             --max-time 60 \
             https://finans-api-ztnv.onrender.com/health
 
-      - name: Warm up kripto cache
+      - name: Warm up kripto cache (BTC ETH SOL XRP — per-coin cache dolar)
         run: |
           curl -s -o /dev/null -w "Kripto: %{http_code}\n" \
             --max-time 60 \
             -H "X-API-Key: ${{ secrets.FINANS_API_KEY }}" \
-            "https://finans-api-ztnv.onrender.com/kripto/toplu?coinler=bitcoin,ethereum,solana,ripple"
+            "https://finans-api-ztnv.onrender.com/kripto/toplu?coinler=BTC,ETH,SOL,XRP,BNB,DOGE,ADA,AVAX,LINK,LTC"
 
       - name: Warm up altin cache
         run: |
@@ -28,3 +28,10 @@ jobs:
             --max-time 60 \
             -H "X-API-Key: ${{ secrets.FINANS_API_KEY }}" \
             https://finans-api-ztnv.onrender.com/altin/tl
+
+      - name: Warm up gumus cache
+        run: |
+          curl -s -o /dev/null -w "Gumus: %{http_code}\n" \
+            --max-time 60 \
+            -H "X-API-Key: ${{ secrets.FINANS_API_KEY }}" \
+            https://finans-api-ztnv.onrender.com/gumus/tl
