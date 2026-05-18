@@ -2,7 +2,7 @@ name: Keep Finans API Alive
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # Her 5 dakikada bir
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -11,23 +11,20 @@ jobs:
     steps:
       - name: Ping health
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
+          curl -s -o /dev/null -w "Health: %{http_code}\n" \
             --max-time 60 \
-            https://finans-api-ztnv.onrender.com/health)
-          echo "Health: $response"
+            https://finans-api-ztnv.onrender.com/health
 
       - name: Warm up kripto cache
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
+          curl -s -o /dev/null -w "Kripto: %{http_code}\n" \
             --max-time 60 \
-            -H "X-API-Key: myapp-8b91ec2472bf052240d3968eac17dc2d" \
-            "https://finans-api-ztnv.onrender.com/kripto/toplu?coinler=bitcoin,ethereum,solana,ripple")
-          echo "Kripto: $response"
+            -H "X-API-Key: ${{ secrets.FINANS_API_KEY }}" \
+            "https://finans-api-ztnv.onrender.com/kripto/toplu?coinler=bitcoin,ethereum,solana,ripple"
 
       - name: Warm up altin cache
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
+          curl -s -o /dev/null -w "Altin: %{http_code}\n" \
             --max-time 60 \
-            -H "X-API-Key: myapp-8b91ec2472bf052240d3968eac17dc2d" \
-            https://finans-api-ztnv.onrender.com/altin/tl)
-          echo "Altin: $response"
+            -H "X-API-Key: ${{ secrets.FINANS_API_KEY }}" \
+            https://finans-api-ztnv.onrender.com/altin/tl
