@@ -1,0 +1,16 @@
+name: Keep Corvus Streamlit Alive
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # Her saat başı
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Corvus Streamlit
+        run: |
+          curl -s -o /dev/null -w "Streamlit: %{http_code}\n" \
+            --max-time 60 \
+            https://corvus.streamlit.app/
