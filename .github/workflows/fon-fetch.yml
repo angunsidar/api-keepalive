@@ -19,12 +19,9 @@ jobs:
           python-version: "3.11"
 
       - name: Bağımlılıkları yükle
-        run: pip install requests playwright
+        run: pip install requests
 
-      - name: Playwright Chromium kur
-        run: playwright install chromium --with-deps
-
-      - name: TEFAS fon verilerini çek ve API'ye gönder
+      - name: Fon verilerini çek ve API'ye gönder
         env:
           API_KEY: ${{ secrets.API_KEY }}
         run: python fetch_funds.py
