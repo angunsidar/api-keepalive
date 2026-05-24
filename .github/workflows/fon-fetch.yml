@@ -1,10 +1,7 @@
 name: TEFAS Fon Verisi Çek
 
 on:
-  schedule:
-    # Her iş günü 10:35 İstanbul saati (UTC+3 → 07:35 UTC)
-    - cron: "35 7 * * 1-5"
-  workflow_dispatch:  # Manuel tetikleme
+  workflow_dispatch:  # Sadece manuel tetikleme (otomatik devre dışı)
 
 jobs:
   fetch-funds:
