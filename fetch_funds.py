@@ -1,6 +1,7 @@
 """
 TEFAS fon verisi çekici — GitHub Actions tarafından her iş günü 10:35'te çalışır.
-Fon fiyatlarını TEFAS'tan alır, Finans API'ye POST eder.
+Playwright (headless Chromium) ile TEFAS sayfasını açar, JS yüklenmesini bekler,
+fon birim pay değerlerini çeker, Finans API /fon/seed endpoint'ine POST eder.
 """
 import os
 import re
@@ -9,6 +10,7 @@ import time
 from datetime import date
 
 import requests
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 API_URL = "https://finans-api-ztnv.onrender.com"
 API_KEY = os.environ["API_KEY"]
@@ -24,76 +26,80 @@ FONLAR = {
     "AFT": "Ak Portföy Kısa Vad. Tahvil Fonu",
 }
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-}
-
-session = requests.Session()
-session.headers.update(HEADERS)
-
-# TEFAS'ın session cookie'sini al
-try:
-    session.get("https://www.tefas.gov.tr/", timeout=15)
-    print("TEFAS session açıldı")
-except Exception as e:
-    print(f"TEFAS session hatası: {e}")
-
 veriler = []
 
-for kod, ad in FONLAR.items():
-    time.sleep(2)  # Rate limit önlemi
-    try:
-        resp = session.get(
-            f"https://www.tefas.gov.tr/FonAnaliz.aspx?FonKod={kod}",
-            timeout=20,
-        )
-        resp.raise_for_status()
-        html = resp.text
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context(
+        locale="tr-TR",
+        user_agent=(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+    )
+    page = context.new_page()
 
-        # Birim pay değeri: tam 6 ondalık basamak (örn: 13,784033)
-        fiyat_match = re.search(r"\b(\d{1,6}[,\.]\d{6})\b", html)
-        if not fiyat_match:
-            print(f"[{kod}] Fiyat bulunamadı — HTML snippet: {html[:200]!r}")
-            continue
+    for kod, ad in FONLAR.items():
+        try:
+            page.goto(
+                f"https://www.tefas.gov.tr/FonAnaliz.aspx?FonKod={kod}",
+                wait_until="networkidle",
+                timeout=30000,
+            )
+            time.sleep(2)  # JS render için ekstra bekle
 
-        fiyat = round(float(fiyat_match.group(1).replace(",", ".")), 6)
-        if fiyat == 0:
-            print(f"[{kod}] Sıfır fiyat, atlanıyor")
-            continue
+            # Önce tam HTML'i dene
+            html = page.content()
+            fiyat_match = re.search(r"\b(\d{1,6}[,\.]\d{6})\b", html)
 
-        # Günlük getiri (opsiyonel)
-        gunluk = 0.0
-        getiri_match = re.search(r"([+-]?\d{1,3}[,\.]\d{4})\s*(?:%|&#37;)", html)
-        if getiri_match:
-            try:
-                gunluk = round(float(getiri_match.group(1).replace(",", ".")), 4)
-            except Exception:
-                pass
+            # Yoksa sayfanın görünür metnini dene
+            if not fiyat_match:
+                text = page.inner_text("body")
+                fiyat_match = re.search(r"\b(\d{1,6}[,\.]\d{6})\b", text)
 
-        veriler.append({
-            "kod": kod,
-            "ad": ad,
-            "fiyat": fiyat,
-            "degisim_yuzde": gunluk,
-            "para_birimi": "TRY",
-            "tarih": str(date.today()),
-            "kaynak": "tefas",
-        })
-        print(f"[{kod}] ✓ {fiyat} TRY  ({gunluk:+.4f}%)")
+            if not fiyat_match:
+                print(f"[{kod}] ✗ Fiyat bulunamadı")
+                # Debug: sayfanın ortasından 300 karakter al
+                print(f"       HTML[500:800]: {html[500:800]!r}")
+                continue
 
-    except Exception as e:
-        print(f"[{kod}] ✗ Hata: {e}")
+            fiyat = round(float(fiyat_match.group(1).replace(",", ".")), 6)
+            if fiyat == 0:
+                print(f"[{kod}] ✗ Sıfır fiyat")
+                continue
+
+            # Günlük getiri
+            gunluk = 0.0
+            text_all = page.inner_text("body")
+            getiri_match = re.search(r"([+-]?\d{1,3}[,\.]\d{4})\s*%", text_all)
+            if getiri_match:
+                try:
+                    gunluk = round(float(getiri_match.group(1).replace(",", ".")), 4)
+                except Exception:
+                    pass
+
+            veriler.append({
+                "kod": kod,
+                "ad": ad,
+                "fiyat": fiyat,
+                "degisim_yuzde": gunluk,
+                "para_birimi": "TRY",
+                "tarih": str(date.today()),
+                "kaynak": "tefas",
+            })
+            print(f"[{kod}] ✓ {fiyat} TRY  ({gunluk:+.4f}%)")
+
+        except PWTimeout:
+            print(f"[{kod}] ✗ Timeout")
+        except Exception as e:
+            print(f"[{kod}] ✗ Hata: {e}")
+
+    browser.close()
+
+print(f"\nToplam: {len(veriler)}/{len(FONLAR)} fon çekildi")
 
 if not veriler:
-    print("Hiçbir fon verisi alınamadı — API'ye POST yapılmıyor")
+    print("Hiçbir veri alınamadı — çıkılıyor")
     sys.exit(1)
 
 # Finans API'ye gönder
@@ -104,7 +110,7 @@ try:
         headers={"X-API-Key": API_KEY},
         timeout=30,
     )
-    print(f"\nAPI seed yanıtı [{r.status_code}]: {r.text}")
+    print(f"API seed [{r.status_code}]: {r.text}")
     if r.status_code != 200:
         sys.exit(1)
 except Exception as e:
