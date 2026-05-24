@@ -1,0 +1,27 @@
+name: TEFAS Fon Verisi Çek
+
+on:
+  schedule:
+    # Her iş günü 10:35 İstanbul saati (UTC+3 → 07:35 UTC)
+    - cron: "35 7 * * 1-5"
+  workflow_dispatch:  # Manuel tetikleme
+
+jobs:
+  fetch-funds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo'yu çek
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bağımlılıkları yükle
+        run: pip install requests
+
+      - name: TEFAS fon verilerini çek ve API'ye gönder
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        run: python fetch_funds.py
